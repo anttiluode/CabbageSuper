@@ -1,7 +1,7 @@
 /* CabbageSuper: an explicit, nonparametric test of parent-conditioned Sihti residue synthesis. */
 const CabbageSuper = (function buildEngine() {
   "use strict";
-  const SIZE=144, TRAIN_END=88, TEST_START=98, HALF=4;
+  const SIZE=144, TRAIN_END=78, TEST_START=108, HALF=4;
   const clip=(v,a,b)=>v<a?a:v>b?b:v;
   const at=(a,x,y,n=SIZE)=>a[clip(y|0,0,n-1)*n+clip(x|0,0,n-1)];
   function hash(seed,x,y){
