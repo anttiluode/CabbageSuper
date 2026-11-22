@@ -21,4 +21,14 @@ const frozen=E.synth(model,"frozen",17,12);
 assert.notDeepEqual(Array.from(shifted.residue),Array.from(frozen.residue),"parent intervention must change routing");
 const alt=E.synth(model,"conditioned",18);
 assert.notDeepEqual(Array.from(alt.residue),Array.from(a.residue),"different seed should change patches");
+// Repeat the synthetic gate across selection seeds, and reject invention on a flat field.
+for (let seed=11;seed<=20;seed++) {
+  const yes=E.score(model,E.synth(model,"conditioned",seed)).mse;
+  const wrong=E.score(model,E.synth(model,"shuffled",seed)).mse;
+  const none=E.score(model,E.synth(model,"independent",seed)).mse;
+  assert.ok(yes<wrong && yes<none,"synthetic parent relation must survive seed "+seed);
+}
+const flat=E.fit(new Float64Array(E.SIZE*E.SIZE).fill(.5));
+const flatOutput=E.synth(flat,"conditioned",17);
+assert.equal(E.score(flat,flatOutput).mse,0,"no law -> no invented residue");
 console.log("CabbageSuper calibration passed:", {dictionary:model.dictionary.length,conditioned:ea,shuffled:eb,independent:ec});
