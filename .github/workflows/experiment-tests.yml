@@ -1,0 +1,20 @@
+name: CabbageSuper calibrated experiments
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Run Gate 1 controls
+        run: node tests.js
+      - name: Run Gate 2 cross-leaf and exact-spectrum controls
+        run: node tests-gate2.js
+      - name: Run Gate 3 donor-only abstention controls
+        run: node tests-gate3.js
