@@ -115,3 +115,45 @@ Use **two independently photographed real leaves**, A for the donor and B for th
 Possible public CC0 specimens to download and upload locally: Wikimedia Commons [Cabbage close up (49199572378)](https://commons.wikimedia.org/wiki/File:Cabbage_close_up_(49199572378).jpg) and [Cabbage close up (49199572553)](https://commons.wikimedia.org/wiki/File:Cabbage_close_up_(49199572553).jpg). Verify the close-up shows appropriate leaf veins at the required spatial resolution; not all cabbage photographs are useful.
 
 **Do not conclude we can generate a whole cabbage.** The target's coarse structure is supplied directly. The question here is only whether a donor-trained local residue rule can reconstruct appropriately structured finer detail in a different leaf.
+
+
+---
+
+## Experiment 003 — When should the model refuse to draw?
+
+[Live viewer (if Pages enabled): experiments 002 and 003](https://anttiluode.github.io/CabbageSuper/gate2.html) · [gate3.js](gate3.js) · [tests-gate3.js](tests-gate3.js) · [full machine-readable receipt](results/experiment002_003.json)
+
+Experiment 002 exposed the next failure: although parent-conditioned detail transfers within one synthetic family, the donor-trained generator **hallucinates fine detail on a blank target**. Gate 3 tests a lightweight refusal rule without adding a target-label oracle:
+
+1. At training time, calculate each donor dictionary entry's squared descriptor distance to its *nearest other* donor entry (leave-one-out).
+2. Fix the acceptance threshold to the **95th percentile of those donor-only distances**. There is no target test residual in this step.
+3. At each target patch location, find its nearest donor descriptor. If the squared distance exceeds the threshold, **do not generate a patch there**.
+4. Overlap-average these binary patch decisions to form a confidence mask; multiply the ungated generated residue by that mask.
+5. Report **coverage** as well as error; a model that abstains everywhere is not a success on true leaf targets.
+
+The distance threshold for synthetic donor seed 0 is **0.035357** (squared descriptor distance). It was not optimized using the flat or unrelated-wave test targets.
+
+| Target (synthetic) | Ungated MSE | Gated MSE | No-detail MSE | Gated coverage |
+|---|---:|---:|---:|---:|
+| Leaf 1 | 0.000143 | **0.000141** | 0.000254 | 84.0% |
+| Leaf 2 | 0.000155 | **0.000153** | 0.000288 | 73.9% |
+| Leaf 3 | 0.000140 | **0.000130** | 0.000325 | 82.5% |
+| Leaf 4 | 0.000175 | **0.000164** | 0.000375 | 80.0% |
+| Flat field | 0.000304 | **0** | **0** | 0% |
+| Unrelated waves | 0.000538 | **0.000187** | 0.000195 | 12.0% |
+
+**Important:** novelty detection and nearest-neighbor confidence are established techniques. The current gate is a simple engineering control, not proof that a new neural attention mechanism or the true biological rule has been discovered. The fixed 95th-percentile cutoff was chosen a priori as a conventional quantile, but the procedure is still exploratory and needs natural-leaf validation. It can wrongly reject rare but valid leaf structures and can accept out-of-family patterns similar to donor patches. The current positive leaf variants all come from a common mathematical generator.
+
+The **next kill test** must use real donor/target leaf pairs under varying illumination, shape, scale and different plants. If the mask shuts off on genuinely new leaves, it is merely an out-of-distribution detector and fails as a general texture generator. If it admits false structures, the local descriptor is insufficient. We should not retune the cutoff on the evaluation photos after seeing their test scores.
+
+### Verify
+
+```sh
+node tests.js
+node tests-gate2.js
+node tests-gate3.js
+```
+
+GitHub Actions workflow [experiment-tests.yml](.github/workflows/experiment-tests.yml) reruns these tests on push and pull requests. Local source-level checks and numerical evaluations passed at implementation time; workflow execution and browser visuals have not been independently verified.
+
+The project now records a **positive control, a wrong-parent kill test, a spectrum-preserving phase test, an independent-target family test, a strict no-detail baseline, and a negative-world abstention test**. All of these are stepping stones toward a real transfer law, not the law itself.
