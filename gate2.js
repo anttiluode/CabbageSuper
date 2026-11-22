@@ -37,8 +37,9 @@ function makeLeaf(seed=1){
  return out;
 }
 function transfer(donor,target){
- const dm=E.fit(donor),tm=E.fit(target);
- return {...tm,dictionary:dm.dictionary,rms:dm.rms,trainingSource:donor};
+ const dm=E.fit(donor),t=E.split(target);
+ // No target dictionary is ever fitted: target detail enters only the scoring object.
+ return {...dm,source:target,coarse:t.coarse,residue:t.residue,trainingSource:donor};
 }
 function empty(model){
  return {coarse:model.coarse,residue:new Float64Array(N*N),image:model.coarse};
