@@ -34,9 +34,9 @@ details{margin:12px 0}summary{cursor:pointer;color:var(--accent)}
 @media(max-width:700px){.panels{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:460px){.panels{grid-template-columns:1fr}}
 </style></head><body><main>
-<div class="eyebrow">CabbageSuper · experiment 002 · cross-leaf transfer</div>
+<div class="eyebrow">CabbageSuper · experiments 002–003 · cross-leaf transfer and abstention</div>
 <h1>Will the second leaf obey?</h1>
-<p class="lead">The donor leaf teaches us which fine-residue patches belong to which coarse neighborhoods. The target leaf supplies only its coarse geometry during synthesis. Its hidden fine detail is revealed only to score the reconstruction. We also test an independent texture, a deliberately wrong parent, zero detail, and <b>the exact same generated Fourier power with randomized phase</b>.</p>
+<p class="lead">The donor leaf teaches us which fine-residue patches belong to which coarse neighborhoods. An additional donor-calibrated confidence gate may refuse to synthesize at unfamiliar addresses. The target leaf supplies only its coarse geometry during synthesis. Its hidden fine detail is revealed only to score the reconstruction. We also test an independent texture, a deliberately wrong parent, zero detail, and <b>the exact same generated Fourier power with randomized phase</b>.</p>
 <a href="index.html">← Experiment 001</a> &nbsp;·&nbsp; <a href="https://github.com/anttiluode/CabbageSuper">Source on GitHub</a>
 <div class="controls">
 <button id="demo">Use two different synthetic leaves</button>
@@ -52,6 +52,8 @@ details{margin:12px 0}summary{cursor:pointer;color:var(--accent)}
 <div class="panel"><header>Target B <small>True lower detail withheld during generation</small></header><canvas id="target"></canvas><footer>Ground truth, for scoring</footer></div>
 <div class="panel"><header>Target coarse <small>What generation actually knows</small></header><canvas id="coarse"></canvas><footer>Blurred target; no fine-residue patches</footer></div>
 <div class="panel"><header>Correct parent <small>Matches fine patches to target geometry</small></header><canvas id="conditioned"></canvas><footer>Our candidate mechanism</footer></div>
+<div class="panel"><header>Confidence-gated parent <small>Refuses patches outside donor-calibrated familiarity</small></header><canvas id="gated"></canvas><footer>Same learned dictionary, but abstains when uncertain</footer></div>
+<div class="panel"><header>Confidence mask <small>Bright where the donor matches the target parent</small></header><canvas id="confidence"></canvas><footer>Calibrated on donor training only</footer></div>
 <div class="panel"><header>Wrong parent <small>Looks up patches at wrong addresses</small></header><canvas id="shuffled"></canvas><footer>Address-binding control</footer></div>
 <div class="panel"><header>Independent texture <small>Random training patches, no parent match</small></header><canvas id="independent"></canvas><footer>Similar training ingredients, wrong layout</footer></div>
 <div class="panel"><header>Fourier-matched fog <small>Exact power spectrum, phases randomized</small></header><canvas id="phase"></canvas><footer>Tests whether frequency magnitudes suffice</footer></div>
@@ -66,12 +68,12 @@ details{margin:12px 0}summary{cursor:pointer;color:var(--accent)}
 <div id="sweepResults">Click “Run twelve synthetic comparisons” to evaluate all 12 target/selection pairs.</div></div>
 <div class="callout">The horizontal guide lines indicate the donor training boundary (upper line) and the target scoring region (lower line). The safety gap prevents training patches and their blur support from crossing into evaluation. For natural photographs, upload <b>two different leaf photos</b>—one donor, one target. Uploads and synthesis remain local to your browser.</div>
 <details><summary>What this experiment cannot yet claim</summary>
-<p>The model retrieves existing 9×9 patches using handcrafted coarse descriptors. It has not learned an arbitrary neural operator or the biological rules of leaf venation. Target coarse geometry is supplied from the real target; therefore the output is <b>conditional detail synthesis</b>, not complete leaf creation. Power-spectrum equality is only between the conditioned result and its phase-scrambled counterpart, not between all the baselines. The flat-field negative control currently fails: a donor-trained model can hallucinate detail on a target with none. This motivates confidence and abstention tests before any claim of robust generation.</p></details>
+<p>The model retrieves existing 9×9 patches using handcrafted coarse descriptors. It has not learned an arbitrary neural operator or the biological rules of leaf venation. Target coarse geometry is supplied from the real target; therefore the output is <b>conditional detail synthesis</b>, not complete leaf creation. Power-spectrum equality is only between the conditioned result and its phase-scrambled counterpart, not between all the baselines. The *ungated* model fails the flat-field negative control by hallucinating detail. Gate 3 implements a donor-only 95th-percentile nearest-neighbor confidence threshold; it refuses the flat target and reduces errors on the unrelated waves in the synthetic controls. Whether that rule improves natural leaves is entirely untested, and its rejection regions are visualized rather than hidden.</p></details>
 <p class="muted">Want real images to try? You can save and locally upload two CC0 cabbage photographs from <a href="https://commons.wikimedia.org/wiki/File:Cabbage_close_up_(49199572378).jpg">Alabama Extension</a> and <a href="https://commons.wikimedia.org/wiki/File:Cabbage_close_up_(49199572553).jpg">Alabama Extension (second image)</a>. The page does not contact Wikimedia on its own.</p>
-</main><script src="engine.js"></script><script src="gate2.js"></script><script>
+</main><script src="engine.js"></script><script src="gate2.js"></script><script src="gate3.js"></script><script>
 (function(){
 "use strict";
-const E=CabbageSuper,G=CabbageGate2,n=E.SIZE;
+const E=CabbageSuper,G=CabbageGate2,H=CabbageGate3,n=E.SIZE;
 const by=id=>document.getElementById(id);
 let donor=G.makeLeaf(0),target=G.makeLeaf(1),donorUser=false,targetUser=false;
 function imagePaint(id,array){
@@ -119,19 +121,23 @@ function render(){
  setTimeout(()=>{
   try{
    const trial=G.evaluate(donor,target,seed,true);
+   const gateCal=H.calibrate(trial.model.dictionary);
+   const gated=H.apply(trial.model,trial.candidates.conditioned,gateCal);
+   const gatedScore=E.score(trial.model,gated);
    if(mine!==serial)return;
    imagePaint("donor",donor);imagePaint("target",target);
    imagePaint("coarse",trial.model.coarse);
+   imagePaint("gated",gated.image);imagePaint("confidence",gated.confidence);
    for(const type of ["conditioned","shuffled","independent","phase","empty"])
     imagePaint(type,trial.candidates[type].image);
    const rows=[["Correct parent","conditioned"],["Wrong parent","shuffled"],["Independent texture","independent"],["Phase-scrambled, same power","phase"],["No detail","empty"]];
    let table='<table><thead><tr><th>Hypothesis</th><th>Residual MSE</th><th>Orientation</th><th>vs. coarse only</th></tr></thead><tbody>';
    const blank=trial.scores.empty.mse;
-   for(const [label,key] of rows){
-    const s=trial.scores[key],delta=blank>0?100*(1-s.mse/blank):null;
+   for(const [label,key] of [["Confidence-gated parent","gated"],...rows]){
+    const s=key==="gated"?gatedScore:trial.scores[key],delta=blank>0?100*(1-s.mse/blank):null;
     table+='<tr><td>'+label+'</td><td>'+fmt(s.mse)+'</td><td>'+(s.orientation===null?'n/a':s.orientation.toFixed(3))+'</td><td>'+(delta===null?'n/a':(delta>0?'+':'')+delta.toFixed(1)+'%')+'</td></tr>';
    }
-   table+='</tbody></table><p class="muted">Relative spectrum mismatch (conditioned vs. phase-scrambled): <code>'+trial.phaseSpectrumError.toExponential(3)+'</code>. This should be near machine precision.';
+   table+='</tbody></table><p class="muted">Gate calibrated at donor leave-one-out 95th-percentile squared descriptor distance <code>'+gateCal.threshold.toFixed(6)+'</code>; held-out target coverage: <b>'+(gated.coverage*100).toFixed(1)+'%</b>. This is donor-calibrated, not tuned on the target answer.</p><p class="muted">Relative spectrum mismatch (conditioned vs. phase-scrambled): <code>'+trial.phaseSpectrumError.toExponential(3)+'</code>. This should be near machine precision.';
    if(trial.scores.conditioned.mse>=blank) table+=' <b>The generator fails to beat simply keeping the coarse image on this target.</b>';
    else table+=' The conditioned generator beats the coarse-only baseline on this target.';
    table+='</p>';
