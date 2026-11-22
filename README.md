@@ -29,6 +29,8 @@ It is **not** a new transformer, a claim of novelty, or an infinite-cabbage gene
 
 The correct-parent variant reduced test MSE by approximately 62% relative to independent patches on the built-in synthetic scene. **This is a calibration case intentionally made with a coarse/fine relationship. It does not establish the same result on natural leaf photographs.** The model may fail on them. Seed, image, patch repetition, and training split matter.
 
+Across seeds 11–20 the correct-parent variant had lower held-out MSE than both controls in **10/10 runs**. Mean pixel MSE was **0.000662** conditioned, **0.001478** shuffled and **0.001718** independent. These are different patch-selection seeds on the **same synthetic image**, not separate datasets. A flat-field null test generates zero spurious residue.
+
 For a real image, the app reports the same measurements without promising a win. If the correct-parent method fails to outperform a matched independent or shuffled control, the hypothesis has not passed on that photograph.
 
 ## Why this relates to the earlier projects
