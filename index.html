@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>CabbageSuper — Does the detail know its parent?</title>
+<style>
+:root{color-scheme:dark;--bg:#101713;--panel:#1b2920;--muted:#b1bfad;--accent:#b4e18a;--line:#365039}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);font:16px/1.52 system-ui,sans-serif;color:#e9f4e5}
+main{max-width:1170px;margin:auto;padding:28px 18px 80px}
+h1{font-size:clamp(2rem,5vw,3.8rem);line-height:1.06;letter-spacing:-.05em;margin:10px 0}
+h2{font-size:1.25rem;margin:8px 0}p{margin:8px 0 16px}
+.lead{max-width:770px;font-size:1.1rem;color:var(--muted)}
+a{color:var(--accent)}.eyebrow{color:var(--accent);letter-spacing:.1em;font-size:.77rem;font-weight:800;text-transform:uppercase}
+.controls{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:18px;margin:24px 0;display:flex;flex-wrap:wrap;align-items:end;gap:16px}
+.control{display:grid;gap:6px;min-width:180px}label{font-size:.88rem;color:var(--muted)}
+button,.filebtn{border:1px solid #759c70;background:#365c37;color:white;padding:10px 16px;border-radius:9px;font-size:.94rem;font-weight:700;cursor:pointer}
+button:hover,.filebtn:hover{background:#4b794b}.filebtn input{display:none}
+input[type=range]{width:190px;accent-color:var(--accent)}
+.val{font-variant-numeric:tabular-nums;color:#fff;font-weight:650}
+.panels{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:15px;overflow:hidden}
+.panelhead{padding:12px 13px 0}.panelhead strong{display:block}.panelhead small{display:block;color:var(--muted);min-height:38px}
+canvas{display:block;width:100%;height:auto;aspect-ratio:1;image-rendering:auto}
+.panel footer{color:var(--muted);font-size:.77rem;padding:7px 13px 12px}
+.results{margin:24px 0;background:var(--panel);border:1px solid var(--line);padding:18px;border-radius:15px}
+table{width:100%;border-collapse:collapse;font-size:.91rem}th,td{padding:9px;border-bottom:1px solid var(--line);text-align:left}
+td:nth-child(n+2),th:nth-child(n+2){text-align:right;font-variant-numeric:tabular-nums}
+.mini{font-size:.88rem;color:var(--muted)}.note{border-left:3px solid var(--accent);padding:6px 15px;color:var(--muted);margin:20px 0}
+@media(max-width:760px){.panels{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:480px){.panels{grid-template-columns:1fr}.controls{align-items:stretch}.control{min-width:0}input[type=range]{width:100%}}
+</style></head>
+<body><main>
+<div class="eyebrow">CabbageSuper · Experiment 001 · offline system identification</div>
+<h1>Does the detail<br>know its parent?</h1>
+<p class="lead">We take a cabbage leaf apart into a coarse field and a finer Sihti-style residue. From the <b>top portion only</b>, we learn a library of how fine patches sit within coarse shapes. Can that library regrow the unseen bottom—and does the result fail when we lie about its parent?</p>
+<div class="controls">
+<button id="demo">Load synthetic leaf</button>
+<label class="filebtn">Use my own leaf photo <input id="upload" type="file" accept="image/*"></label>
+<div class="control"><label for="seed">Novelty seed <span class="val" id="seedText">17</span></label><input id="seed" type="range" min="1" max="99" step="1" value="17"></div>
+<div class="control"><label for="shift">Shift coarse parent <span class="val" id="shiftText">0 px</span></label><input id="shift" type="range" min="-24" max="24" step="2" value="0"></div>
+<button id="regrow">Regrow held-out detail</button>
+</div>
+<p class="mini" id="status" role="status">Loading built-in calibration image…</p>
+<div class="panels">
+<section class="panel"><div class="panelhead"><strong>1 · Original</strong><small>The hidden answer in the bottom region</small></div><canvas id="original"></canvas><footer>Real data for evaluation only</footer></section>
+<section class="panel"><div class="panelhead"><strong>2 · Coarse parent</strong><small>Blurred image with fine residue removed</small></div><canvas id="coarse"></canvas><footer>The structure the generator is allowed to see</footer></section>
+<section class="panel"><div class="panelhead"><strong>3 · Correct parent</strong><small>Fine patches selected by matching coarse geometry</small></div><canvas id="conditioned"></canvas><footer>The candidate learning mechanism</footer></section>
+<section class="panel"><div class="panelhead"><strong>4 · Shuffled parent</strong><small>Same library, false spatial address</small></div><canvas id="shuffled"></canvas><footer>Tests whether the correct address matters</footer></section>
+<section class="panel"><div class="panelhead"><strong>5 · Independent detail</strong><small>Same library, patches chosen without a parent</small></div><canvas id="independent"></canvas><footer>Tests whether texture statistics alone suffice</footer></section>
+<section class="panel"><div class="panelhead"><strong>6 · Frozen detail</strong><small>Keep the original detail choices when the parent moves</small></div><canvas id="frozen"></canvas><footer>Counterfactual: detail fails to follow the parent</footer></section>
+</div>
+<div class="results"><h2>Held-out test</h2><div id="results" class="mini">Computing…</div></div>
+<div class="note"><b>How to read the two horizontal lines:</b> Above the first line is the training region, where original fine detail is visible. Between the lines is a safety gap: the blur used to make the parent must not leak held-out detail into training. Beneath the second line is the test region. Only that lower strip is generated.</div>
+<h2>What is and is not learned</h2>
+<p>The model stores <b>pairs of coarse-neighborhood descriptors and corresponding 9×9 fine-residue patches</b>. On a new location, it retrieves four similar training patches and chooses one reproducibly from the seed. Overlapping patches are blended. All three generated variants use the same patch dictionary and their residual RMS is matched to the training detail.</p>
+<p>It does <b>not</b> learn an arbitrary inverse operator, a neural attention head, leaf anatomy, or an infinite-coordinate generator. It does not learn the precise phase of unseen random detail. It is a small, falsifiable test of whether conditioning on coarse structure helps a new residue land in the right place. The built-in scene deliberately contains a known parent/detail relationship; success on it is a calibration, <b>not evidence for natural cabbages</b>. A real photograph may fail.</p>
+<p class="mini">Everything runs in your browser. Uploaded photos are downsampled and converted to grayscale locally; nothing is sent anywhere. Source code: <a href="https://github.com/anttiluode/CabbageSuper">CabbageSuper on GitHub</a>. The green tint is for display only.</p>
+</main>
+<script src="engine.js"></script>
+<script>
+(function(){
+  "use strict";
+  const E=CabbageSuper,n=E.SIZE;
+  let source=E.demo(),model=null;
+  const byId=x=>document.getElementById(x);
+  function paint(id,data){
+    const cv=byId(id);cv.width=cv.height=n;
+    const ctx=cv.getContext("2d"),im=ctx.createImageData(n,n);
+    for(let i=0;i<n*n;i++){
+      const v=E.clip(data[i],0,1),j=i*4;
+      im.data[j]=Math.round(17+115*v);im.data[j+1]=Math.round(33+184*v);
+      im.data[j+2]=Math.round(22+112*v);im.data[j+3]=255;
+    }
+    ctx.putImageData(im,0,0);
+    for(const y of [E.TRAIN_END,E.TEST_START]){
+      ctx.strokeStyle=y===E.TRAIN_END?"#e9d995":"#ffb5a3";
+      ctx.lineWidth=.75;ctx.setLineDash([3,3]);ctx.beginPath();ctx.moveTo(0,y+.5);ctx.lineTo(n,y+.5);ctx.stroke();
+    }
+    ctx.setLineDash([]);
+  }
+  function fmt(x){return Number.isFinite(x)?x.toFixed(6):"n/a";}
+  function refresh(retrain){
+    const seed=Number(byId("seed").value),shift=Number(byId("shift").value);
+    byId("seedText").textContent=String(seed);byId("shiftText").textContent=shift+" px";
+    byId("status").textContent="Selecting parent-matched patches…";
+    requestAnimationFrame(()=>{
+      try{
+        if(retrain||!model)model=E.fit(source);
+        const a=E.synth(model,"conditioned",seed,shift);
+        const b=E.synth(model,"shuffled",seed,shift);
+        const c=E.synth(model,"independent",seed,shift);
+        const f=E.synth(model,"frozen",seed,shift);
+        paint("original",source);paint("coarse",a.coarse);
+        paint("conditioned",a.image);paint("shuffled",b.image);paint("independent",c.image);paint("frozen",f.image);
+        let table="";
+        if(shift===0){
+          const rows=[["Correct parent",a],["Shuffled parent",b],["Independent detail",c]];
+          const entries=rows.map(([name,r])=>[name,E.score(model,r)]);
+          table='<p class="mini">Lower error is better. Orientation measures whether fine-residue gradients follow the coarse-parent gradients (−1 to +1; larger means more aligned). Exact pixel error is a tough test for stochastic texture.</p><table><thead><tr><th>Method</th><th>Pixel MSE</th><th>Orientation</th></tr></thead><tbody>';
+          for(const [name,s] of entries)table+='<tr><td>'+name+'</td><td>'+fmt(s.mse)+'</td><td>'+s.orientation.toFixed(3)+'</td></tr>';
+          table+='</tbody></table>';
+          const winner=entries.slice().sort((x,y)=>x[1].mse-y[1].mse)[0];
+          table+='<p class="mini">Lowest pixel error on this image: <b>'+winner[0]+'</b>. This is not automatically the most realistic new texture.</p>';
+        }else{
+          let delta=0,cnt=0;
+          for(let y=E.TEST_START;y<n;y++)for(let x=0;x<n;x++){const i=y*n+x,d=a.residue[i]-f.residue[i];delta+=d*d;cnt++;}
+          table='<p><b>Parent intervention active:</b> the coarse structure has been displaced while the texture library and seed remain fixed. Pixel comparison against the original is no longer meaningful.</p><p>RMS difference between rerouted and frozen-detail residue: <b>'+Math.sqrt(delta/cnt).toFixed(5)+'</b>.</p>';
+        }
+        byId("results").innerHTML=table;
+        byId("status").textContent=model.dictionary.length+" learned examples · training rows 0–"+(E.TRAIN_END-1)+" · held-out rows "+E.TEST_START+"–"+(n-1)+" · zero network access";
+      }catch(err){byId("status").textContent="Experiment error: "+err.message;console.error(err);}
+    });
+  }
+  byId("demo").onclick=()=>{source=E.demo();byId("shift").value=0;refresh(true);};
+  byId("regrow").onclick=()=>refresh(false);
+  byId("seed").oninput=()=>{byId("seedText").textContent=byId("seed").value;};
+  byId("shift").oninput=()=>{byId("shiftText").textContent=byId("shift").value+" px";};
+  byId("seed").onchange=()=>refresh(false);byId("shift").onchange=()=>refresh(false);
+  byId("upload").onchange=async function(){
+    const file=this.files&&this.files[0];if(!file)return;
+    try{
+      const bitmap=await createImageBitmap(file);
+      const cv=document.createElement("canvas");cv.width=cv.height=n;
+      const ctx=cv.getContext("2d");
+      const side=Math.min(bitmap.width,bitmap.height),sx=(bitmap.width-side)/2,sy=(bitmap.height-side)/2;
+      ctx.drawImage(bitmap,sx,sy,side,side,0,0,n,n);
+      bitmap.close&&bitmap.close();
+      const px=ctx.getImageData(0,0,n,n).data;
+      source=new Float64Array(n*n);
+      for(let i=0;i<source.length;i++)source[i]=(.299*px[4*i]+.587*px[4*i+1]+.114*px[4*i+2])/255;
+      byId("shift").value=0;refresh(true);
+    }catch(e){byId("status").textContent="Could not load image: "+e.message;}
+  };
+  refresh(true);
+})();
+</script></body></html>
