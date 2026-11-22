@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>CabbageSuper Gate 2 — Does a second leaf obey?</title>
+<style>
+:root{color-scheme:dark;--bg:#0d1713;--card:#192820;--line:#36523c;--accent:#b6e898;--muted:#afc4b7}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:#e9f6e9;font:15px/1.55 system-ui,sans-serif}
+main{max-width:1300px;padding:24px 18px 72px;margin:auto}
+small,.muted{color:var(--muted)}a{color:var(--accent)}
+h1{letter-spacing:-.04em;font-size:clamp(2.2rem,5vw,4.2rem);margin:8px 0;line-height:1.07}
+h2{font-size:1.3rem;margin:3px 0 9px}
+.eyebrow{font-weight:800;font-size:.74rem;letter-spacing:.1em;text-transform:uppercase;color:var(--accent)}
+.lead{font-size:1.08rem;color:var(--muted);max-width:970px;margin:10px 0 25px}
+.controls,.measure,.explain{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;margin:20px 0}
+.controls{display:flex;flex-wrap:wrap;gap:12px;align-items:end}
+.control{display:grid;gap:6px;min-width:190px}
+button,.file{border:1px solid #7eaf7b;background:#335a38;color:white;border-radius:9px;padding:10px 14px;font:inherit;font-weight:650;cursor:pointer}
+button:hover,.file:hover{background:#426f49}button:disabled{opacity:.5;cursor:progress}
+label{font-size:.84rem;color:var(--muted)}.file input{display:none}
+input[type=range]{width:175px;accent-color:var(--accent)}select{background:#192820;color:white;border:1px solid #7eaf7b;padding:10px;border-radius:8px}
+.panels{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+.panel{background:var(--card);border:1px solid var(--line);border-radius:13px;overflow:hidden}
+.panel header{padding:12px 12px 0;font-weight:750;min-height:65px}
+.panel header small{font-weight:400;display:block;line-height:1.25;margin-top:4px}
+.panel canvas{display:block;width:100%;height:auto;aspect-ratio:1}
+.panel footer{font-size:.78rem;color:var(--muted);padding:8px 12px 10px}
+table{border-collapse:collapse;width:100%;font-size:.9rem}
+th,td{border-bottom:1px solid var(--line);padding:9px;text-align:left}
+td:not(:first-child),th:not(:first-child){text-align:right;font-variant-numeric:tabular-nums}
+code{font-family:ui-monospace,Consolas,monospace}
+details{margin:12px 0}summary{cursor:pointer;color:var(--accent)}
+#status{font-size:.9rem;color:var(--accent)}.callout{border-left:3px solid var(--accent);padding:8px 14px;margin:20px 0;color:var(--muted)}
+@media(max-width:1000px){.panels{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(max-width:700px){.panels{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:460px){.panels{grid-template-columns:1fr}}
+</style></head><body><main>
+<div class="eyebrow">CabbageSuper · experiment 002 · cross-leaf transfer</div>
+<h1>Will the second leaf obey?</h1>
+<p class="lead">The donor leaf teaches us which fine-residue patches belong to which coarse neighborhoods. The target leaf supplies only its coarse geometry during synthesis. Its hidden fine detail is revealed only to score the reconstruction. We also test an independent texture, a deliberately wrong parent, zero detail, and <b>the exact same generated Fourier power with randomized phase</b>.</p>
+<a href="index.html">← Experiment 001</a> &nbsp;·&nbsp; <a href="https://github.com/anttiluode/CabbageSuper">Source on GitHub</a>
+<div class="controls">
+<button id="demo">Use two different synthetic leaves</button>
+<label class="file">Upload donor A <input id="donorfile" type="file" accept="image/*"></label>
+<label class="file">Upload target B <input id="targetfile" type="file" accept="image/*"></label>
+<div class="control"><label for="targetType">Target for built-in trials</label><select id="targetType"><option value="leaf">Different leaf</option><option value="flat">Flat field (negative control)</option><option value="waves">Unrelated waves (negative control)</option></select></div>
+<div class="control"><label for="seed">Patch-selection seed: <b id="seedval">17</b></label><input type="range" id="seed" min="1" max="99" value="17"></div>
+<button id="run">Regrow and score</button><button id="sweep">Run twelve synthetic comparisons</button>
+</div>
+<p id="status" role="status">Preparing the built-in second leaf…</p>
+<div class="panels">
+<div class="panel"><header>Donor A <small>Only its upper training region teaches the model</small></header><canvas id="donor"></canvas><footer>Dictionary source, not the target</footer></div>
+<div class="panel"><header>Target B <small>True lower detail withheld during generation</small></header><canvas id="target"></canvas><footer>Ground truth, for scoring</footer></div>
+<div class="panel"><header>Target coarse <small>What generation actually knows</small></header><canvas id="coarse"></canvas><footer>Blurred target; no fine-residue patches</footer></div>
+<div class="panel"><header>Correct parent <small>Matches fine patches to target geometry</small></header><canvas id="conditioned"></canvas><footer>Our candidate mechanism</footer></div>
+<div class="panel"><header>Wrong parent <small>Looks up patches at wrong addresses</small></header><canvas id="shuffled"></canvas><footer>Address-binding control</footer></div>
+<div class="panel"><header>Independent texture <small>Random training patches, no parent match</small></header><canvas id="independent"></canvas><footer>Similar training ingredients, wrong layout</footer></div>
+<div class="panel"><header>Fourier-matched fog <small>Exact power spectrum, phases randomized</small></header><canvas id="phase"></canvas><footer>Tests whether frequency magnitudes suffice</footer></div>
+<div class="panel"><header>No fine detail <small>Coarse parent alone</small></header><canvas id="empty"></canvas><footer>Strict baseline: is generation helpful at all?</footer></div>
+</div>
+<div class="measure">
+<h2>Held-out results</h2><p class="muted">All scores use the target's lower strip only. Lower squared error is better, but alternative plausible phase can still score badly. The orientation diagnostic measures how strongly fine-detail gradients align with the coarse-parent gradient field.</p>
+<div id="metrics">Computing…</div>
+</div>
+<div class="measure"><h2>Repeated synthetic trial</h2>
+<p class="muted">Train on synthetic donor seed 0, evaluate on four independently parametrized synthetic leaves (seeds 1–4), selecting patches with seeds 11, 17 and 23. This is still the <b>same procedural family</b>, not a real-world benchmark.</p>
+<div id="sweepResults">Click “Run twelve synthetic comparisons” to evaluate all 12 target/selection pairs.</div></div>
+<div class="callout">The horizontal guide lines indicate the donor training boundary (upper line) and the target scoring region (lower line). The safety gap prevents training patches and their blur support from crossing into evaluation. For natural photographs, upload <b>two different leaf photos</b>—one donor, one target. Uploads and synthesis remain local to your browser.</div>
+<details><summary>What this experiment cannot yet claim</summary>
+<p>The model retrieves existing 9×9 patches using handcrafted coarse descriptors. It has not learned an arbitrary neural operator or the biological rules of leaf venation. Target coarse geometry is supplied from the real target; therefore the output is <b>conditional detail synthesis</b>, not complete leaf creation. Power-spectrum equality is only between the conditioned result and its phase-scrambled counterpart, not between all the baselines. The flat-field negative control currently fails: a donor-trained model can hallucinate detail on a target with none. This motivates confidence and abstention tests before any claim of robust generation.</p></details>
+<p class="muted">Want real images to try? You can save and locally upload two CC0 cabbage photographs from <a href="https://commons.wikimedia.org/wiki/File:Cabbage_close_up_(49199572378).jpg">Alabama Extension</a> and <a href="https://commons.wikimedia.org/wiki/File:Cabbage_close_up_(49199572553).jpg">Alabama Extension (second image)</a>. The page does not contact Wikimedia on its own.</p>
+</main><script src="engine.js"></script><script src="gate2.js"></script><script>
+(function(){
+"use strict";
+const E=CabbageSuper,G=CabbageGate2,n=E.SIZE;
+const by=id=>document.getElementById(id);
+let donor=G.makeLeaf(0),target=G.makeLeaf(1),donorUser=false,targetUser=false;
+function imagePaint(id,array){
+ const c=by(id),ctx=c.getContext("2d");c.width=c.height=n;
+ const im=ctx.createImageData(n,n);
+ for(let i=0;i<n*n;i++){
+  const v=E.clip(array[i],0,1),k=i*4;
+  im.data[k]=Math.round(18+108*v);im.data[k+1]=Math.round(32+188*v);
+  im.data[k+2]=Math.round(25+105*v);im.data[k+3]=255;
+ }
+ ctx.putImageData(im,0,0);
+ for(const y of [E.TRAIN_END,E.TEST_START]){
+  ctx.beginPath();ctx.strokeStyle=y===E.TRAIN_END?"#e8d997":"#ffa59c";
+  ctx.setLineDash([4,3]);ctx.moveTo(0,y+.5);ctx.lineTo(n,y+.5);ctx.stroke();
+ }
+ ctx.setLineDash([]);
+}
+function setTarget(){
+ if(targetUser)return;
+ switch(by("targetType").value){
+ case "flat":target=new Float64Array(n*n).fill(.5);break;
+ case "waves":target=new Float64Array(n*n);
+  for(let y=0;y<n;y++)for(let x=0;x<n;x++)
+   target[y*n+x]=.5+.1*Math.sin(x*1.17+y*.91)+.04*Math.cos(y*.57);
+  break;
+ default:target=G.makeLeaf(1);
+ }
+}
+async function readImage(file){
+ const bmp=await createImageBitmap(file),c=document.createElement("canvas");
+ c.width=c.height=n;
+ const cx=c.getContext("2d"),side=Math.min(bmp.width,bmp.height);
+ cx.drawImage(bmp,(bmp.width-side)/2,(bmp.height-side)/2,side,side,0,0,n,n);
+ bmp.close&&bmp.close();
+ const d=cx.getImageData(0,0,n,n).data,out=new Float64Array(n*n);
+ for(let i=0;i<out.length;i++)out[i]=(.299*d[i*4]+.587*d[i*4+1]+.114*d[i*4+2])/255;
+ return out;
+}
+function fmt(v){return Number.isFinite(v)?v.toFixed(6):"n/a";}
+let serial=0;
+function render(){
+ const mine=++serial,seed=Number(by("seed").value);
+ by("seedval").textContent=String(seed);by("status").textContent="Computing donor-only transfer and spectral control…";
+ by("run").disabled=true;
+ setTimeout(()=>{
+  try{
+   const trial=G.evaluate(donor,target,seed,true);
+   if(mine!==serial)return;
+   imagePaint("donor",donor);imagePaint("target",target);
+   imagePaint("coarse",trial.model.coarse);
+   for(const type of ["conditioned","shuffled","independent","phase","empty"])
+    imagePaint(type,trial.candidates[type].image);
+   const rows=[["Correct parent","conditioned"],["Wrong parent","shuffled"],["Independent texture","independent"],["Phase-scrambled, same power","phase"],["No detail","empty"]];
+   let table='<table><thead><tr><th>Hypothesis</th><th>Residual MSE</th><th>Orientation</th><th>vs. coarse only</th></tr></thead><tbody>';
+   const blank=trial.scores.empty.mse;
+   for(const [label,key] of rows){
+    const s=trial.scores[key],delta=blank>0?100*(1-s.mse/blank):null;
+    table+='<tr><td>'+label+'</td><td>'+fmt(s.mse)+'</td><td>'+(s.orientation===null?'n/a':s.orientation.toFixed(3))+'</td><td>'+(delta===null?'n/a':(delta>0?'+':'')+delta.toFixed(1)+'%')+'</td></tr>';
+   }
+   table+='</tbody></table><p class="muted">Relative spectrum mismatch (conditioned vs. phase-scrambled): <code>'+trial.phaseSpectrumError.toExponential(3)+'</code>. This should be near machine precision.';
+   if(trial.scores.conditioned.mse>=blank) table+=' <b>The generator fails to beat simply keeping the coarse image on this target.</b>';
+   else table+=' The conditioned generator beats the coarse-only baseline on this target.';
+   table+='</p>';
+   by("metrics").innerHTML=table;
+   by("status").textContent='Completed · '+trial.model.dictionary.length+' donor examples · target detail used for scores only · all computation local';
+  }catch(e){by("status").textContent="Experiment failed: "+e.message;console.error(e);}
+  finally{by("run").disabled=false;}
+ },35);
+}
+by("demo").onclick=()=>{donor=G.makeLeaf(0);targetUser=false;donorUser=false;by("targetType").value="leaf";target=G.makeLeaf(1);render();};
+by("targetType").onchange=()=>{targetUser=false;setTarget();render();};
+by("run").onclick=()=>render();
+by("seed").oninput=()=>{by("seedval").textContent=by("seed").value;};
+by("seed").onchange=()=>render();
+for(const [input,name] of [["donorfile","donor"],["targetfile","target"]]){
+ by(input).onchange=async function(){
+  const file=this.files&&this.files[0];if(!file)return;
+  try{
+   const arr=await readImage(file);
+   if(name==="donor"){donor=arr;donorUser=true;}else{target=arr;targetUser=true;}
+   render();
+  }catch(e){by("status").textContent="Image load error: "+e.message;}
+ };
+}
+by("sweep").onclick=function(){
+ const btn=this;btn.disabled=true;by("sweepResults").textContent="Evaluating 12 genuinely held-out combinations within one synthetic family…";
+ setTimeout(()=>{
+  try{
+   const report=G.seedSweep(0,[1,2,3,4],[11,17,23],false);
+   let result='<table><thead><tr><th>Method</th><th>Mean MSE</th><th>Best of 12</th></tr></thead><tbody>';
+   for(const k of ["conditioned","shuffled","independent","empty"])
+    result+='<tr><td>'+k+'</td><td>'+fmt(report.means[k])+'</td><td>'+(report.wins[k]||0)+'</td></tr>';
+   result+='</tbody></table><p class="muted">Different synthetic target leaves were generated with different parameters and patterns. Training never uses their high-frequency detail. Winning here is only a calibration within a family designed to have a coarse-to-fine relationship.</p>';
+   by("sweepResults").innerHTML=result;
+  }catch(e){by("sweepResults").textContent="Sweep error: "+e.message;console.error(e);}
+  finally{btn.disabled=false;}
+ },35);
+};
+render();
+})();
+</script></body></html>
