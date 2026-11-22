@@ -54,9 +54,9 @@ Open index.html in any modern browser with engine.js in the same directory. No P
 
 For the sanity controls, run:
 
-\`\`\`sh
+```sh
 node tests.js
-\`\`\`
+```
 
 ## Next scientific gate
 
